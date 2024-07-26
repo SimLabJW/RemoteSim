@@ -1,1 +1,0 @@
-Model = ['Robomaster', 'TelloDrone', 'Mirobot']
