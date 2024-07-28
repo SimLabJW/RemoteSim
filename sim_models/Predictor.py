@@ -4,8 +4,8 @@ import heapq
 import json
 
 class Predictor(BehaviorModelExecutor) :
-    def __init__(self, instantiate_time, destruct_time, name, engine_name):
-        BehaviorModelExecutor.__init__(self, instantiate_time, destruct_time, name, engine_name)
+    def __init__(self,  instance_time, destruct_time, name, engine_name, conn):
+        BehaviorModelExecutor.__init__(self, instance_time, destruct_time, name, engine_name)
         self.init_state("Wait")
         self.insert_state("Wait", Infinite)        
         self.insert_state("Predict", 1)
@@ -18,7 +18,7 @@ class Predictor(BehaviorModelExecutor) :
         self.start_point = 0
         self.end_point = 0
         self.current_position = ()
-        self.client_socket = None
+        self.conn = conn
 
         self.key_dict = {}
         self.distances = {}
@@ -29,9 +29,6 @@ class Predictor(BehaviorModelExecutor) :
         self.previous_position = ()
 
 
-
-
-
     def ext_trans(self, port, msg):
         # initializer -> predictor
         if port == "init_done" :
@@ -39,7 +36,7 @@ class Predictor(BehaviorModelExecutor) :
             self.start_point = msg.retrieve()[1] # tuple (x, y)
             self.end_point = msg.retrieve()[2] # tuple (x, y)
             self.key_dict = msg.retrieve()[3] 
-            self.client_socket = msg.retrieve()[4]
+
             self.distances = {(i, j) : float('inf') for i in range(self.grid_scale) for j in range(self.grid_scale)}
             self.distances[self.start_point] = 0
             self.current_position = deepcopy(self.start_point)
@@ -98,14 +95,13 @@ class Predictor(BehaviorModelExecutor) :
                         # 시작 위치를 제외한 경로가 나와있는 상태
                         # 따라서, recommend_path[0]은 현 위치에서 추천하는 이동 위치
                         
-                        data = load_json_template()
+                        data = self.load_json_template()
                         data['msg'] = "New Recommend Path"
                         data['recommendPath'] = list(self.recommend_path)
-                        json_data = json.dumps(data).encode('utf-8')
-                        self.client_socket.sendall(json_data)
+                        self.conn.send(data)
 
                         msg = SysMessage(self.get_name(), "pred_done")
-                        msg.insert(position_to_key(self.current_position, self.recommend_path[0]))
+                        msg.insert(self.position_to_key(self.current_position, self.recommend_path[0]))
                         return msg
 
                     x, y = current_node
@@ -129,7 +125,7 @@ class Predictor(BehaviorModelExecutor) :
                 del(self.recommend_path[0])
                 print(f"new recommend path : {self.recommend_path}")
                 if len(self.recommend_path) > 0 :
-                    msg.insert(position_to_key(self.current_position, self.recommend_path[0]))
+                    msg.insert(self.position_to_key(self.current_position, self.recommend_path[0]))
                 else :
                     msg.insert("Goal")
 
@@ -138,3 +134,25 @@ class Predictor(BehaviorModelExecutor) :
     
     def int_trans(self):
         self._cur_state = "Wait"
+
+    def load_json_template(self) -> dict :
+        data = {'msg' : "-", 'recommendPath' : "-", 'nextRecommend' : "-", 'movingLog' : "-"}
+        return data
+    
+    def position_to_key(self, prev_pos, cur_pos) :
+        dx = cur_pos[0] - prev_pos[0]
+        dy = cur_pos[1] - prev_pos[1]
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
+
+        if abs_dx + abs_dy != 1 :
+            return None
+        else :
+            if dx == 0 and dy == -1 :
+                return 'front'
+            elif dx == 0 and dy == 1 :
+                return 'back'
+            elif dx == 1 and dy == 0 :
+                return 'right'
+            elif dx == -1 and dy == 0 :
+                return 'left'

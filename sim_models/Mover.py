@@ -1,10 +1,10 @@
 from pyevsim import BehaviorModelExecutor, Infinite, SysMessage
-from copy import deepcopy
 import json
+from copy import deepcopy
 
 class Mover(BehaviorModelExecutor) :
-    def __init__(self, instantiate_time, destruct_time, name, engine_name):
-        BehaviorModelExecutor.__init__(self, instantiate_time, destruct_time, name, engine_name)
+    def __init__(self,  instance_time, destruct_time, name, engine_name, conn):
+        BehaviorModelExecutor.__init__(self, instance_time, destruct_time, name, engine_name)
         self.init_state("Wait")
         self.insert_state("Wait", Infinite)
         self.insert_state("Move", 1)
@@ -20,7 +20,7 @@ class Mover(BehaviorModelExecutor) :
         self.start_point = 0
         self.end_point = 0
         self.key_dict = {}
-        self.client_socket = None
+        self.conn = conn
 
     def ext_trans(self, port, msg):
         # initializer -> mover
@@ -29,7 +29,6 @@ class Mover(BehaviorModelExecutor) :
             self.start_point = msg.retrieve()[1]
             self.end_point = msg.retrieve()[2]
             self.key_dict = msg.retrieve()[3]
-            self.client_socket = msg.retrieve()[4]
             self.current_position = deepcopy(self.start_point)
             self.moving_log.append(self.start_point)
 
@@ -41,26 +40,19 @@ class Mover(BehaviorModelExecutor) :
             if recommended_key == "None" :
                 print("No recommended Route. Exit RoutingSim.")
                 
-                data = load_json_template()
+                data = self.load_json_template()
                 data['msg'] = "Finding Route Failed"
-                json_data = json.dumps(data).encode('utf-8')
-                self.client_socket.sendall(json_data)
+                self.conn.send(data)
 
-                sys.exit()
 
-            # self.client_socket.sendall(recommended_key.encode('utf-8'))
-            # 맵 그려줘야함. 이동 할 수 있는 곳은 '.' 으로 표시, 추천 경로는 '+' 로 표시, 현위치는 P로 표시
-            # 입력, 저장하는 좌표는 xy 좌표. 
-            os.system('cls')
             map_grid = [['.'] * self.grid_scale for _ in range(self.grid_scale)]
             if recommended_key != "Goal" :
-                recommended_position = key_to_position(recommended_key, self.current_position)
+                recommended_position = self.key_to_position(recommended_key, self.current_position)
 
-                data = load_json_template()
+                data = self.load_json_template()
                 data['msg'] = "Input Next Command"
                 data['nextRecommend'] = {'command' : recommended_key, 'location' : list(recommended_position)}
-                json_data = json.dumps(data).encode('utf-8')
-                self.client_socket.sendall(json_data)
+                self.conn.send(data)
 
                 map_grid[recommended_position[1]][recommended_position[0]] = '+'
             map_grid[self.current_position[1]][self.current_position[0]] = 'P'
@@ -71,35 +63,37 @@ class Mover(BehaviorModelExecutor) :
                 print("Goal! Exit RoutingSim.")
                 print(f"Your Moving Log : {self.moving_log}")
 
-                data = load_json_template()
+                data = self.load_json_template()
                 data['msg'] = "Goal!"
                 data['movingLog'] = list(self.moving_log)
-                json_data = json.dumps(data).encode('utf-8')
-                self.client_socket.sendall(json_data)
-
-                sys.exit()
+                self.conn.send(data)
 
             self._cur_state = "Move"
 
     
     def output(self):
+        # if self._cur_state == "Move" :
+        # 움직이는거 만들어야함. wasd 키 입력받게 하기
+        # 움직인 위치를 moving_log에 넣고, predictor 모델에 전해주기
+
         if self._cur_state == "Move" :
+            # input_key = input("Enter Moving Direction (w, a, s, d) : ")
             
-            input_key = self.client_socket.recv(1024).decode('utf-8')
+            input_key = self.conn.recv()
+            print("mover input "+input_key)
             changed_input_key = self.key_dict.get(input_key)
-            next_position = key_to_position(changed_input_key, self.current_position)
+            print("mover change input "+input_key)
+            next_position = self.key_to_position(changed_input_key, self.current_position)
             print(f"Current Position : {self.current_position}, Next Position : {next_position}")
             while next_position[0] < 0 or next_position[1] < 0 :
                 print(f"Move Failed")
                 
-                data = load_json_template()
+                data = self.load_json_template()
                 data['msg'] = "Move Failed. Input Again : "
-                json_data = json.dumps(data).encode('utf-8')
-                self.client_socket.sendall(json_data)
+                self.conn.send(data)
 
             if next_position == None :
                 print(f"Next Position == None.\ninput_key = {input_key}, cur_position = {self.current_position}")
-                sys.exit()
             
             else :
                 self.current_position = next_position
@@ -110,3 +104,42 @@ class Mover(BehaviorModelExecutor) :
                 
     def int_trans(self):
         self._cur_state = "Wait"
+    
+
+    def key_to_position(self,input_key, prev_pos) :
+        if input_key in ['front', 'back', 'left', 'right'] :
+            x, y = prev_pos
+            if input_key == 'front' : 
+                y -= 1
+            elif input_key == 'back' :
+                y += 1
+            elif input_key == 'left' :
+                x -= 1
+            elif input_key == 'right' :
+                x += 1
+            cur_pos = (x, y)
+            return cur_pos 
+        
+        else : return None
+        
+    def load_json_template(self) -> dict :
+        data = {'msg' : "-", 'recommendPath' : "-", 'nextRecommend' : "-", 'movingLog' : "-"}
+        return data
+    
+    def position_to_key(self, prev_pos, cur_pos) :
+        dx = cur_pos[0] - prev_pos[0]
+        dy = cur_pos[1] - prev_pos[1]
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
+
+        if abs_dx + abs_dy != 1 :
+            return None
+        else :
+            if dx == 0 and dy == -1 :
+                return 'front'
+            elif dx == 0 and dy == 1 :
+                return 'back'
+            elif dx == 1 and dy == 0 :
+                return 'right'
+            elif dx == -1 and dy == 0 :
+                return 'left'

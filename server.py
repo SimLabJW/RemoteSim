@@ -3,11 +3,13 @@ import threading
 import time
 import signal
 import os
-import json
 from RobotController import *
+from Simulator import Simulator
 
 class TCPServer:
-    def __init__(self, host='0.0.0.0', ports=[11013, 11014, 11015]):
+    def __init__(self, host='0.0.0.0', ports=[11013, 11014]):
+        self.simulator = Simulator()
+
         self.robotcontroller = RobotController()
         self.connect_message = None
         self.sensor_message = None
@@ -17,21 +19,15 @@ class TCPServer:
         self.servers = []
         self.stop_event = threading.Event()
         self.remote_flag = False
-
-        self.unitysim_conn = None
-        self.sim_conn = None  # Simulation 연결을 저장하기 위한 변수
         self.image_conn = None  # To hold the connection for image transfer
-
         self.image_conn_lock = threading.Lock()
 
         self.ep_robot = None  # 로봇을 나중에 초기화하기 위해 None으로 설정
         self.robotcamera = None
         self.robotsensor = None
-        self.robots = {}  # 여러 로봇을 관리하기 위한 딕셔너리
+        self.robots = {}  # 변경된 부분: 여러 로봇을 관리하기 위한 딕셔너리
         self.initialized_robots = set()  # 이미 초기화된 로봇을 추적하기 위한 집합
         self.init_lock = threading.Lock()  # 초기화에 사용할 락
-
-        self.simulation_flag = False
 
         for port in self.ports:
             try:
@@ -73,6 +69,7 @@ class TCPServer:
                     except Exception as e:
                         print(f"Failed to send image: {e}")
                         self.image_conn = None
+
 
     def initialize_robot(self, serial_number):
         max_retries = 3
@@ -131,8 +128,7 @@ class TCPServer:
                     if json_data[0] == 'Unity Start' or json_data[0] == 'Simulation':
                         self.remote_flag = False
                         if json_data[0] == "Simulation":
-                            self.simulation_flag = True
-
+                            self.simulator.main()
                         if send_thread and send_thread.is_alive():
                             stop_event.set()
                             send_thread.join()
@@ -147,8 +143,6 @@ class TCPServer:
 
                     elif json_data[0] == 'Remote':
                         self.remote_flag = True
-                        self.simulation_flag = False
-
                         serial_number = json_data[1]
 
                         if serial_number not in self.initialized_robots:
@@ -196,57 +190,9 @@ class TCPServer:
                                 break
                     else:
                         pass
-
-                elif port == 11015:
-                    print(f"Received from {addr} on port {port}: {data}")
-                    if self.sim_conn is None:
-                        self.sim_conn = conn  # 11015 포트의 연결을 저장
-                    if self.unitysim_conn:
-                        try:
-                            print("Sending data to Unity...")
-                            
-                            msg = json_data['msg']
-                            recommendPath = json_data['recommendPath']
-                            nextRecommend = json_data['nextRecommend']
-                            movingLog = json_data['movingLog']
-
-                            simulation_data = {
-                                'msg': msg,
-                                'recommendPath': recommendPath,
-                                'nextRecommend': nextRecommend,
-                                'movingLog': movingLog
-                            }
-                            simulation_data_str = json.dumps(simulation_data) + "\n"
-                            print(f"Send Unity data {simulation_data_str}")
-
-                            self.unitysim_conn.sendall(simulation_data_str.encode())
-                        except Exception as e:
-                            print(f"Error sending data to Unity: {e}")
-                            self.unitysim_conn = None
-
-                elif port == 11016:
-
-                    # 시뮬레이션 플래그가 True일 때 11015 포트로 메시지를 전송
-                    if self.simulation_flag and self.sim_conn:
-                        self.sim_conn.sendall(json_data[1].encode())
-                    
-                        self.simulation_flag = False
-                    else:
-                        print(f"Received from {addr} on port {port}: {data}")
-                        if self.unitysim_conn is None:
-                            self.unitysim_conn = conn  # 11016 포트의 연결을 저장
-                        if self.sim_conn:
-                            try:
-                                print("Sending data to Simulation...")
-                                self.sim_conn.sendall(json_data[1].encode())
-                            except Exception as e:
-                                print(f"Error sending data to Simulation: {e}")
-                                self.sim_conn = None
-
         except Exception as e:
             print(f"Exception in client handler on port {port}: {e}")
-            if self.ep_robot:
-                self.ep_robot.close()
+            self.ep_robot.close()
         finally:
             if send_thread and send_thread.is_alive():
                 stop_event.set()
@@ -254,10 +200,10 @@ class TCPServer:
             if port == 11014:
                 with threading.Lock():
                     self.image_conn = None
-            if self.ep_robot:
-                self.ep_robot.close()
             conn.close()
             print(f"Client disconnected on port {port}: {addr}")
+            self.ep_robot.close()
+
 
     def convert_image_to_bytes(self, image_data):
         success, encoded_image = cv2.imencode('.jpg', image_data)
@@ -331,6 +277,6 @@ class TCPServer:
         os._exit(0)
 
 if __name__ == "__main__":
-    ports = [11013, 11014, 11015, 11016]  # 필요한 포트를 추가
+    ports = [11013, 11014]  # 필요한 포트를 추가
     tcp_server = TCPServer(ports=ports)
     tcp_server.start_server()
