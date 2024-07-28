@@ -5,9 +5,11 @@ import signal
 import os
 import json
 from RobotController import *
+from Simulator import Simulator
 
 class TCPServer:
-    def __init__(self, host='0.0.0.0', ports=[11013, 11014, 11015]):
+    def __init__(self, host='0.0.0.0', ports=[11013,]):
+
         self.robotcontroller = RobotController()
         self.connect_message = None
         self.sensor_message = None
@@ -19,17 +21,17 @@ class TCPServer:
         self.remote_flag = False
 
         self.unitysim_conn = None
-        self.sim_conn = None  # Simulation 연결을 저장하기 위한 변수
-        self.image_conn = None  # To hold the connection for image transfer
+        self.sim_conn = None 
+        self.image_conn = None  
 
         self.image_conn_lock = threading.Lock()
 
-        self.ep_robot = None  # 로봇을 나중에 초기화하기 위해 None으로 설정
+        self.ep_robot = None  
         self.robotcamera = None
         self.robotsensor = None
-        self.robots = {}  # 여러 로봇을 관리하기 위한 딕셔너리
-        self.initialized_robots = set()  # 이미 초기화된 로봇을 추적하기 위한 집합
-        self.init_lock = threading.Lock()  # 초기화에 사용할 락
+        self.robots = {}  
+        self.initialized_robots = set()  
+        self.init_lock = threading.Lock()  
 
         self.simulation_flag = False
 
@@ -45,6 +47,8 @@ class TCPServer:
                 print(f"Error binding to port {port}: {e}")
                 os._exit(1)
 
+        
+
     def send_periodically(self, conn, message, stop_event):
         while not stop_event.is_set():
             if self.remote_flag:
@@ -59,7 +63,7 @@ class TCPServer:
             except socket.error as e:
                 print(f"Error sending message: {e}")
                 break
-            time.sleep(1)  # 1초마다 메시지 전송
+            time.sleep(1) 
 
     def send_image(self, robotcamera):
         with self.image_conn_lock:
@@ -67,7 +71,7 @@ class TCPServer:
                 if robotcamera:
                     try:
                         image_data = robotcamera.read_cv2_image(strategy="newest")
-                        img = cv2.resize(image_data, (480, 300))  # 해상도를 조정
+                        img = cv2.resize(image_data, (480, 300)) 
                         encoded_image = self.convert_image_to_bytes(img)
                         self.image_conn.sendall(encoded_image)
                     except Exception as e:
@@ -105,7 +109,7 @@ class TCPServer:
                 continue
             except Exception as e:
                 print(f"Attempt {attempt + 1}/{max_retries} - Error during robot initialization for serial number: {serial_number}: {e}")
-                time.sleep(2)  # 재시도 전 대기 시간
+                time.sleep(2)  
         else:
             print(f"Failed to initialize robot after {max_retries} attempts for serial number: {serial_number}")
 
@@ -152,10 +156,9 @@ class TCPServer:
                         serial_number = json_data[1]
 
                         if serial_number not in self.initialized_robots:
-                            # 로봇 초기화 작업을 별도의 스레드에서 실행
                             init_thread = threading.Thread(target=self.initialize_robot, args=(serial_number,))
                             init_thread.start()
-                            init_thread.join()  # 초기화가 완료될 때까지 기다림
+                            init_thread.join()  
                         else:
                             print(f"Robot with serial number {serial_number} already initialized.")
                             self.ep_robot = self.robots[serial_number]['robot']
@@ -175,7 +178,7 @@ class TCPServer:
                         send_thread = threading.Thread(target=self.send_periodically, args=(conn, sensor_m, stop_event))
                         send_thread.start()
 
-                elif port == 11014:  # 유니티로부터 명령을 전달 받음
+                elif port == 11014: 
                     if json_data[0] == 'Remote':
                         time.sleep(3)
                         print(f"Received from {addr} on port {port}: {data}")
@@ -200,7 +203,7 @@ class TCPServer:
                 elif port == 11015:
                     print(f"Received from {addr} on port {port}: {data}")
                     if self.sim_conn is None:
-                        self.sim_conn = conn  # 11015 포트의 연결을 저장
+                        self.sim_conn = conn  
                     if self.unitysim_conn:
                         try:
                             print("Sending data to Unity...")
@@ -226,7 +229,6 @@ class TCPServer:
 
                 elif port == 11016:
 
-                    # 시뮬레이션 플래그가 True일 때 11015 포트로 메시지를 전송
                     if self.simulation_flag and self.sim_conn:
                         self.sim_conn.sendall(json_data[1].encode())
                     
@@ -234,7 +236,7 @@ class TCPServer:
                     else:
                         print(f"Received from {addr} on port {port}: {data}")
                         if self.unitysim_conn is None:
-                            self.unitysim_conn = conn  # 11016 포트의 연결을 저장
+                            self.unitysim_conn = conn  
                         if self.sim_conn:
                             try:
                                 print("Sending data to Simulation...")
@@ -282,9 +284,9 @@ class TCPServer:
                     continue
 
                 if self.remote_flag and json_data[1] in ['W', 'S', 'A', 'D','Q', 'E']:
-                    self.robomaster_move(json_data[1])  # 올바른 데이터 전달
+                    self.robomaster_move(json_data[1]) 
 
-                # if self.remote_flag and json_data[1] in ['Q', 'E']: #대가리 회전임
+                # if self.remote_flag and json_data[1] in ['Q', 'E']: #대가리 회전 해야함(키 찾아야함)
                 #     self.robomaster_rotation(json_data[1])  # 올바른 데이터 전달
 
         except Exception as e:
@@ -299,7 +301,7 @@ class TCPServer:
         print(f"robomaster unity cmd : {cmd}")
 
     def start_server(self):
-        signal.signal(signal.SIGINT, self.shutdown)
+
         threads = []
         try:
             for i, server in enumerate(self.servers):
@@ -323,14 +325,20 @@ class TCPServer:
             conn, addr = server.accept()
             threading.Thread(target=self.handle_client, args=(conn, addr, port)).start()
 
-    def shutdown(self, signum, frame):
-        print("Shutting down server...")
-        self.stop_event.set()
-        for server in self.servers:
-            server.close()
-        os._exit(0)
-
 if __name__ == "__main__":
-    ports = [11013, 11014, 11015, 11016]  # 필요한 포트를 추가
+    ports = [11013, 11014, 11015, 11016]  
     tcp_server = TCPServer(ports=ports)
-    tcp_server.start_server()
+    # tcp_server.start_server()
+
+    server_thread = threading.Thread(target=tcp_server.start_server)
+    server_thread.start()
+
+    simulator_thread = threading.Thread(target=lambda: Simulator().engine_start())
+    simulator_thread.start()
+
+    server_thread.join()
+    simulator_thread.join()
+
+
+
+

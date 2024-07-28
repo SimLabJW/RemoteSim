@@ -85,6 +85,6 @@ class Simulator:
         # self.sm_engine.simulate()
         
 
-if __name__ == "__main__":
-    Simulator().engine_start()
+# if __name__ == "__main__":
+#     Simulator().engine_start()
 
