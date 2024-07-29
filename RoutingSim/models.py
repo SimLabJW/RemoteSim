@@ -222,6 +222,9 @@ class predictor(BehaviorModelExecutor) :
             # 별다른 조치 없이 바로 다음 추천 위치를 mover에 전달함.
             # 마지막 이동이 recommend_path[0]과 다를 경우 == 추천한 대로 움직이지 않았을 경우
             # 새 루트를 짜줌
+
+
+            # FIXME : 240729 발견 | back -> forward 하면 길을 못찾음
             msg = SysMessage(self.get_name(), "pred_done")
             print(f"previous_position : {self.previous_position}, current_position : {self.current_position}")
             print(f"recommend_path : {self.recommend_path}")
@@ -287,6 +290,12 @@ class predictor(BehaviorModelExecutor) :
                 print(f"new recommend path : {self.recommend_path}")
                 if len(self.recommend_path) > 0 :
                     msg.insert(position_to_key(self.current_position, self.recommend_path[0]))
+
+                    data = load_json_template()
+                    data['recommendPath'] = list(self.recommend_path)
+                    json_data = json.dumps(data).encode('utf-8')
+                    self.client_socket.sendall(json_data)
+
                 else :
                     msg.insert("Goal")
 
@@ -383,16 +392,27 @@ class mover(BehaviorModelExecutor) :
 
         if self._cur_state == "Move" :
             # input_key = input("Enter Moving Direction (w, a, s, d) : ")
-            
-            input_key = self.client_socket.recv(1024).decode('utf-8')
-            changed_input_key = self.key_dict.get(input_key)
+            changed_input_key = None
+
+            # 240729 취약점 해결 : key_dict에 없는 키 입력했을 때 다시 받도록 함
+            while changed_input_key == None :
+                input_key = self.client_socket.recv(1024).decode('utf-8')
+                changed_input_key = self.key_dict.get(input_key)
+
+                if changed_input_key == None :
+                    data = load_json_template()
+                    data['msg'] = "Invalid input. Input Again"
+                    json_data = json.dumps(data).encode('utf-8')
+                    self.client_socket.sendall(json_data)
+                    continue
+
             next_position = key_to_position(changed_input_key, self.current_position)
             print(f"Current Position : {self.current_position}, Next Position : {next_position}")
             while next_position[0] < 0 or next_position[1] < 0 :
                 print(f"Move Failed")
                 
                 data = load_json_template()
-                data['msg'] = "Move Failed. Input Again : "
+                data['msg'] = "Move Failed. Input Again"
                 json_data = json.dumps(data).encode('utf-8')
                 self.client_socket.sendall(json_data)
 

@@ -13,6 +13,13 @@ def receive_messages(client_socket : socket.socket, stop_event : threading.Event
                 stop_event.set()
                 break
             print(f"\nServer : {receive_dict}")
+
+            # 도착하면 클라이언트 꺼지는 부분입니다! 필요하시면 주석 해제 해주세요!
+
+            #if receive_dict['msg'] == 'Goal!' :
+            #   print("Client Stop")
+            #   stop_event.set()
+
         except Exception as e:
             print(f"Recv Error : {e}")
             stop_event.set()
