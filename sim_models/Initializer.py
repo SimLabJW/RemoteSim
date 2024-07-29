@@ -14,8 +14,8 @@ class Initializer(BehaviorModelExecutor) :
         self.start_point = None
         self.end_point = None
         self.key_dict = {
-            "W" : "front",
-            "S" : "back",
+            "W" : "back",
+            "S" : "front",
             "A" : "left",
             "D" : "right"
         }
