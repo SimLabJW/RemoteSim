@@ -78,13 +78,20 @@ class Mover(BehaviorModelExecutor) :
 
         if self._cur_state == "Move" :
             # input_key = input("Enter Moving Direction (w, a, s, d) : ")
-            
-            input_key = self.conn.recv()
-            print("mover input "+input_key)
-            changed_input_key = self.key_dict.get(input_key)
-            print("mover change input "+input_key)
+            changed_input_key = None
+
+            while changed_input_key == None :
+                input_key = self.conn.recv()
+                changed_input_key = self.key_dict.get(input_key)
+
+                if changed_input_key == None :
+                    data = self.load_json_template()
+                    data['msg'] = "Invalid input. Input Again"
+                    self.conn.send(data)
+                    continue
+
+
             next_position = self.key_to_position(changed_input_key, self.current_position)
-            print(f"Current Position : {self.current_position}, Next Position : {next_position}")
             while next_position[0] < 0 or next_position[1] < 0 :
                 print(f"Move Failed")
                 

@@ -126,6 +126,9 @@ class Predictor(BehaviorModelExecutor) :
                 print(f"new recommend path : {self.recommend_path}")
                 if len(self.recommend_path) > 0 :
                     msg.insert(self.position_to_key(self.current_position, self.recommend_path[0]))
+                    data = self.load_json_template()
+                    data['recommendPath'] = list(self.recommend_path)
+                    self.conn.send(data)
                 else :
                     msg.insert("Goal")
 
