@@ -7,6 +7,7 @@ v1 RemoteSim
 2.Unity <-> Server(TCP) <-> Robomaster SDK
 - Robot Image
 - Robot Control
+- Robot Control assitance Simulation
 
 v2(expactation)
 2.Unity <-> Server(TCP) <-> Robomaster SDK
