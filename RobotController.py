@@ -1,13 +1,8 @@
-import base64
-import cv2
 from datetime import datetime
-import random
 import json
-import time
-
-from multi_robomaster import multi_robot
+# from multi_robomaster import multi_robot
 from robomaster import robot, camera, conn
-from multi_robomaster import multi_robot
+
 import sys
 
 
@@ -135,37 +130,37 @@ class RobotController():
 
 
 ####################################################################################
- #multi
-    def initialize_multi_robot(self, sn):
-        multi_robots = multi_robot.MultiEP()
-        multi_robots.initialize()
+#  #multi
+#     def initialize_multi_robot(self, sn):
+#         multi_robots = multi_robot.MultiEP()
+#         multi_robots.initialize()
 
-        connected_robots_gimbal = []
-        connected_robots_gripper = []
+#         connected_robots_gimbal = []
+#         connected_robots_gripper = []
 
-        if '3JKCK2S00305WL' in sn:
-            filtered_sn = [s for s in sn if s != '3JKCK2S00305WL']
-            for idx, sn in enumerate(['3JKCK2S00305WL'], start=len(filtered_sn)):
-                try:
-                    if multi_robots.number_id_by_sn([idx, sn]):
-                        connected_robots_gripper.append((idx, sn))
-                except:
-                    print(f"Robot with SN {sn} is not connected.")
+#         if '3JKCK2S00305WL' in sn:
+#             filtered_sn = [s for s in sn if s != '3JKCK2S00305WL']
+#             for idx, sn in enumerate(['3JKCK2S00305WL'], start=len(filtered_sn)):
+#                 try:
+#                     if multi_robots.number_id_by_sn([idx, sn]):
+#                         connected_robots_gripper.append((idx, sn))
+#                 except:
+#                     print(f"Robot with SN {sn} is not connected.")
 
-            gripper_ids = [idx for idx, sn in connected_robots_gripper]
-            robot_group_gripper = multi_robots.build_group(gripper_ids)
+#             gripper_ids = [idx for idx, sn in connected_robots_gripper]
+#             robot_group_gripper = multi_robots.build_group(gripper_ids)
 
-            return multi_robots, robot_group_gripper
+#             return multi_robots, robot_group_gripper
 
-        else:
-            for idx, sn in enumerate(sn):
-                try:
-                    if multi_robots.number_id_by_sn([idx, sn]):
-                        connected_robots_gimbal.append((idx, sn))
-                except:
-                    print(f"Robot with SN {sn} is not connected.")
+#         else:
+#             for idx, sn in enumerate(sn):
+#                 try:
+#                     if multi_robots.number_id_by_sn([idx, sn]):
+#                         connected_robots_gimbal.append((idx, sn))
+#                 except:
+#                     print(f"Robot with SN {sn} is not connected.")
 
-            gimbal_ids = [idx for idx, sn in connected_robots_gimbal]
-            robot_group_gimbal = multi_robots.build_group(gimbal_ids)
+#             gimbal_ids = [idx for idx, sn in connected_robots_gimbal]
+#             robot_group_gimbal = multi_robots.build_group(gimbal_ids)
 
-            return multi_robots, robot_group_gimbal
+#             return multi_robots, robot_group_gimbal

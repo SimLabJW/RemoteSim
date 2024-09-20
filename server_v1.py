@@ -1,11 +1,12 @@
 import socket
 import threading
 import time
-import signal
 import os
 import json
 from RobotController import *
+import torch
 from Simulator import Simulator
+import cv2
 
 class TCPServer:
     def __init__(self, host='0.0.0.0', ports=[11013,]):
@@ -34,6 +35,13 @@ class TCPServer:
         self.init_lock = threading.Lock()  
 
         self.simulation_flag = False
+
+        self.confidence_threshold = 0.7
+        # 모델 파일 경로 (best.pt 또는 last.pt)
+        model_path = '../new_v25_2/best.pt'  # 혹은 'last.pt'
+
+        # YOLOv5 모델 로드
+        self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
 
         for port in self.ports:
             try:
@@ -264,6 +272,23 @@ class TCPServer:
     def convert_image_to_bytes(self, image_data):
         success, encoded_image = cv2.imencode('.jpg', image_data)
         if success:
+            # YOLOv5 모델에 프레임 전달하여 객체 감지
+            results = self.model(encoded_image)
+
+            # 감지된 객체 중 confidence score가 0.7 이상인 것만 필터링
+            results = results.pandas().xyxy[0]  # YOLOv5 결과를 판다스 DataFrame으로 변환
+            filtered_results = results[results['confidence'] >= self.confidence_threshold]
+
+            # 필터링된 결과를 기반으로 바운딩 박스 그리기
+            for index, row in filtered_results.iterrows():
+                # 좌표 추출
+                x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+                confidence = row['confidence']
+                label = f"{row['name']} {confidence:.2f}"
+
+                # 바운딩 박스와 라벨 그리기
+                cv2.rectangle(encoded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
             return encoded_image.tobytes()
         else:
             return None
