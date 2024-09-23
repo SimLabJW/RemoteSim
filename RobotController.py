@@ -16,6 +16,10 @@ class RobotController():
         "192.168.50.221": "3JKCK6U0030A6U", # 5층 로봇
         "192.168.50.39": "3JKCK980030EKR"   # 6층 로봇
         }
+
+        self.pitch = 0
+        self.yaw = 0
+        self.angle = 0
         
     def Research_Device(self):
         self.ip_list = conn.scan_robot_ip_list(timeout=1)
@@ -97,6 +101,7 @@ class RobotController():
     ###############################################################################################
 
     def Move(self, ep_robot, key):
+        
         try:
             # Define body movement based on key
             body_movement = {
@@ -104,26 +109,40 @@ class RobotController():
                 'S': (-0.3, 0, 0),
                 'A': (0, -0.3, 0),
                 'D': (0, 0.3, 0),
-                'Q': (0, 0, 30),
-                'E': (0, 0, -30)
+                'Q': (0, 0, 15),
+                'E': (0, 0, -15)
             }
             x, y, z = body_movement[key]
-            ep_robot.chassis.move(x=x, y=y, z=z, xy_speed=0.7, z_speed=45).wait_for_completed()
+
+            if key == "Q" or key == "E":
+                self.angle += z
+            else:
+                self.angle = 0
+
+            ep_robot.chassis.move(x=x, y=y, z=self.angle, xy_speed=0.7, z_speed=30).wait_for_completed()
+
+
         except KeyError:
             print(f"Invalid key: '{key}'. Terminating program.")
             sys.exit(1)  # 프로그램을 에러 코드와 함께 종료
 
     def Rotation(self,key):
-
         try:
             # Define gimbal movement based on key
             gimbal_movement = {
-                'Q': (30, 0),
-                'E': (-30, 0),
+                'J': (0, -15),
+                'L': (0, 15),
+                'I': (15, 0),
+                'K': (-15, 0),
             }
 
             pitch, yaw = gimbal_movement[key]
+
+
             self.ep_gimbal.move(pitch=pitch, yaw=yaw).wait_for_completed()
+
+            
+
         except KeyError:
             print(f"Invalid key: '{key}'. Terminating program.")
             sys.exit(1)  # 프로그램을 에러 코드와 함께 종료

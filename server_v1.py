@@ -7,6 +7,8 @@ from RobotController import *
 import torch
 from Simulator import Simulator
 import cv2
+from datetime import datetime
+
 
 class TCPServer:
     def __init__(self, host='0.0.0.0', ports=[11013,]):
@@ -313,30 +315,39 @@ class TCPServer:
                 if not data:
                     break
                 data = data.decode()
-
                 try:
+                    current_time = datetime.now()
                     json_data = json.loads(data)
+                     # 첫 번째 데이터 무시
+                    if 'Item1' in json_data[1] and 'Item2' in json_data[1]:
+                        command = json_data[1]['Item1']
+                        date_time = json_data[1]['Item2']
+
+                        received_time_obj = datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S.%f")  # 문자열을 datetime 객체로 변환
+
+                        time_difference = current_time - received_time_obj  # 시간 차이 계산
+
+                        print(f"Time difference: {time_difference.total_seconds()} seconds")
+
+                        # 로봇 명령어 처리
+                        if self.remote_flag and command in ['W', 'S', 'A', 'D', 'Q', 'E']:
+                            self.robomaster_move(command) 
+
+                        if self.remote_flag and command in ['J', 'L', 'I', 'K']:  # 대가리 회전
+                            self.robomaster_head_rotation(command)
 
                 except json.JSONDecodeError as e:
                     print(f"JSON decode error in handle_commands: {e}")
                     continue
-
-                if self.remote_flag and json_data[1] in ['W', 'S', 'A', 'D','Q', 'E']:
-                    self.robomaster_move(json_data[1]) 
-
-                # if self.remote_flag and json_data[1] in ['Q', 'E']: #대가리 회전 해야함(키 찾아야함)
-                #     self.robomaster_rotation(json_data[1])  # 올바른 데이터 전달
 
         except Exception as e:
             print(f"Exception in command handler: {e}")
 
     def robomaster_move(self, cmd):
         self.robotcontroller.Move(self.ep_robot, cmd)
-        print(f"robomaster unity cmd : {cmd}")
 
     def robomaster_head_rotation(self, cmd):
         self.robotcontroller.Rotation(cmd)
-        print(f"robomaster unity cmd : {cmd}")
 
     def start_server(self):
 
