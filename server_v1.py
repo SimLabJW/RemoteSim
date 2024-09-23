@@ -38,7 +38,7 @@ class TCPServer:
 
         self.confidence_threshold = 0.7
         # 모델 파일 경로 (best.pt 또는 last.pt)
-        model_path = '../new_v25_2/best.pt'  # 혹은 'last.pt'
+        model_path = './new_v25_2/best.pt'  # 혹은 'last.pt'
 
         # YOLOv5 모델 로드
         self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
@@ -269,30 +269,43 @@ class TCPServer:
             conn.close()
             print(f"Client disconnected on port {port}: {addr}")
 
+    # def convert_image_to_bytes(self, image_data): yolov5 없이 사용할때
+    #     success, encoded_image = cv2.imencode('.jpg', image_data)
+    #     if success:
+    #         return encoded_image.tobytes()
+    #     else:
+    #         return None
+        
     def convert_image_to_bytes(self, image_data):
-        success, encoded_image = cv2.imencode('.jpg', image_data)
+        # YOLO 모델에 전달할 원본 이미지 사용
+        original_image = image_data.copy()
+        
+        # YOLOv5 모델에 원본 이미지 전달하여 객체 감지
+        results = self.model(original_image)
+
+        # 감지된 객체 중 confidence score가 0.7 이상인 것만 필터링
+        results = results.pandas().xyxy[0]  # YOLOv5 결과를 판다스 DataFrame으로 변환
+        filtered_results = results[results['confidence'] >= self.confidence_threshold]
+
+        # 필터링된 결과를 기반으로 바운딩 박스 그리기
+        for index, row in filtered_results.iterrows():
+            # 좌표 추출
+            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+            confidence = row['confidence']
+            label = f"{row['name']} {confidence:.2f}"
+
+            # 바운딩 박스와 라벨을 원본 이미지에 그리기
+            cv2.rectangle(original_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(original_image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+
+        # 원본 이미지에 바운딩 박스를 그린 후, 이를 JPEG 형식으로 인코딩
+        success, encoded_image = cv2.imencode('.jpg', original_image)
+        
         if success:
-            # YOLOv5 모델에 프레임 전달하여 객체 감지
-            results = self.model(encoded_image)
-
-            # 감지된 객체 중 confidence score가 0.7 이상인 것만 필터링
-            results = results.pandas().xyxy[0]  # YOLOv5 결과를 판다스 DataFrame으로 변환
-            filtered_results = results[results['confidence'] >= self.confidence_threshold]
-
-            # 필터링된 결과를 기반으로 바운딩 박스 그리기
-            for index, row in filtered_results.iterrows():
-                # 좌표 추출
-                x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
-                confidence = row['confidence']
-                label = f"{row['name']} {confidence:.2f}"
-
-                # 바운딩 박스와 라벨 그리기
-                cv2.rectangle(encoded_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
             return encoded_image.tobytes()
         else:
             return None
-        
+
     def handle_commands(self, conn):
         try:
             while True:
