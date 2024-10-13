@@ -5,7 +5,6 @@ import os
 import json
 from RobotController import *
 import torch
-from Simulator import Simulator
 import cv2
 from datetime import datetime
 
@@ -35,8 +34,6 @@ class TCPServer:
         self.robots = {}  
         self.initialized_robots = set()  
         self.init_lock = threading.Lock()  
-
-        self.simulation_flag = False
 
         self.confidence_threshold = 0.7
         # 모델 파일 경로 (best.pt 또는 last.pt)
@@ -142,16 +139,16 @@ class TCPServer:
 
                 if port == 11013:
                     print(f"Received from {addr} on port {port}: {data}")
-                    if json_data[0] == 'Unity Start' or json_data[0] == 'Simulation':
+                    if json_data[0] == 'Unity Start':
                         self.remote_flag = False
-                        if json_data[0] == "Simulation":
-                            self.simulation_flag = True
-
+                    
                         if send_thread and send_thread.is_alive():
                             stop_event.set()
                             send_thread.join()
+
                         stop_event.clear()
                         connect_m = self.robotcontroller.Research_Device()
+
                         if not connect_m or connect_m == "No robots found.":
                             connect_m = b"No robots found."
                         else:
@@ -161,8 +158,6 @@ class TCPServer:
 
                     elif json_data[0] == 'Remote':
                         self.remote_flag = True
-                        self.simulation_flag = False
-
                         serial_number = json_data[1]
 
                         if serial_number not in self.initialized_robots:
@@ -190,7 +185,7 @@ class TCPServer:
 
                 elif port == 11014: 
                     if json_data[0] == 'Remote':
-                        time.sleep(3)
+                        time.sleep(1)
                         print(f"Received from {addr} on port {port}: {data}")
                         with threading.Lock():
                             self.image_conn = conn
@@ -209,51 +204,6 @@ class TCPServer:
                                 break
                     else:
                         pass
-
-                elif port == 11015:
-                    print(f"Received from {addr} on port {port}: {data}")
-                    if self.sim_conn is None:
-                        self.sim_conn = conn  
-                    if self.unitysim_conn:
-                        try:
-                            print("Sending data to Unity...")
-                            
-                            msg = json_data['msg']
-                            recommendPath = json_data['recommendPath']
-                            nextRecommend = json_data['nextRecommend']
-                            movingLog = json_data['movingLog']
-
-                            simulation_data = {
-                                'msg': msg,
-                                'recommendPath': recommendPath,
-                                'nextRecommend': nextRecommend,
-                                'movingLog': movingLog
-                            }
-                            simulation_data_str = json.dumps(simulation_data) + "\n"
-                            print(f"Send Unity data {simulation_data_str}")
-
-                            self.unitysim_conn.sendall(simulation_data_str.encode())
-                        except Exception as e:
-                            print(f"Error sending data to Unity: {e}")
-                            self.unitysim_conn = None
-
-                elif port == 11016:
-
-                    if self.simulation_flag and self.sim_conn:
-                        self.sim_conn.sendall(json_data[1].encode())
-                    
-                        self.simulation_flag = False
-                    else:
-                        print(f"Received from {addr} on port {port}: {data}")
-                        if self.unitysim_conn is None:
-                            self.unitysim_conn = conn  
-                        if self.sim_conn:
-                            try:
-                                print("Sending data to Simulation...")
-                                self.sim_conn.sendall(json_data[1].encode())
-                            except Exception as e:
-                                print(f"Error sending data to Simulation: {e}")
-                                self.sim_conn = None
 
         except Exception as e:
             print(f"Exception in client handler on port {port}: {e}")
@@ -375,18 +325,15 @@ class TCPServer:
             threading.Thread(target=self.handle_client, args=(conn, addr, port)).start()
 
 if __name__ == "__main__":
-    ports = [11013, 11014, 11015, 11016]  
+    ports = [11013, 11014]  
     tcp_server = TCPServer(ports=ports)
     # tcp_server.start_server()
 
     server_thread = threading.Thread(target=tcp_server.start_server)
     server_thread.start()
 
-    simulator_thread = threading.Thread(target=lambda: Simulator().engine_start())
-    simulator_thread.start()
 
     server_thread.join()
-    simulator_thread.join()
 
 
 
