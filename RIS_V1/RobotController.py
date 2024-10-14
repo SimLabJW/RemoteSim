@@ -1,14 +1,15 @@
 from datetime import datetime
 import json
 # from multi_robomaster import multi_robot
-from robomaster import robot, camera, conn
+from robomaster import robot, camera, conn, armor
 
 import sys
-
+import time
 
 class RobotController():
     def __init__(self): 
         self.distance = 0  # 초기 거리 값
+        self.hit = "None"
         self.ep_robot = None
         
         self.ip_to_sn = {
@@ -61,10 +62,19 @@ class RobotController():
     
     def Device_Sensor(self, ep_robot):
         ep_robot.sensor.sub_distance(freq=1, callback=self.tof_callback)
-        
-    
+
+    def Device_HitSensor(self, ep_robot):
+
+        ep_robot.armor.set_hit_sensitivity(comp="all", sensitivity=5)
+        ep_robot.armor.sub_hit_event(self.hit_callback)
+
     def get_latest_distance(self):
         return [{"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "distance": self.distance}]
+    
+    def get_latest_hit(self):
+        hit_info = self.hit
+        self.hit = "None"
+        return [{"timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3], "hit": hit_info}]
     
     ##################################################
 
@@ -74,29 +84,22 @@ class RobotController():
 
     def hit_callback(self, sub_info):
         # 로봇이 충격을 받을 때 호출
-        # armor_id, hit_type = sub_info
-        timestamp = self.time()
+        armor_id, hit_type = sub_info
+
+        if armor_id == 1:
+            self.hit = "back"
         
-        # hit_info = [armor_id, hit_type]
-        # self.ep_robot.led.set_led(comp="all", r=random.randint(0, 255), g=random.randint(0, 255), b=random.randint(0, 255))  
+        elif armor_id == 2:
+            self.hit = "front"
 
-        return [{"timestamp":timestamp, "distance":self.distance}] #hit_info
+        elif armor_id == 3:
+            self.hit = "left"
 
-    def json_convert(id, timestamp, image_data, distance, hit_info=None):
-        # 데이터를 서버로 전송
-        hit_info = hit_info if hit_info else [None, None]
+        elif armor_id == 4:
+            self.hit = "right"
 
-        packet = {
-            "id": id,
-            "time": timestamp,
-            "imageData": image_data,
-            "distance": distance,
-            "hitInfo": hit_info
-        }
-
-        json_data = json.dumps(packet) + '\n'
-
-        return json_data.encode('utf-8')
+        # else:
+        #     self.hit = "None"
 
     ###############################################################################################
 
@@ -146,40 +149,3 @@ class RobotController():
         except KeyError:
             print(f"Invalid key: '{key}'. Terminating program.")
             sys.exit(1)  # 프로그램을 에러 코드와 함께 종료
-
-
-####################################################################################
-#  #multi
-#     def initialize_multi_robot(self, sn):
-#         multi_robots = multi_robot.MultiEP()
-#         multi_robots.initialize()
-
-#         connected_robots_gimbal = []
-#         connected_robots_gripper = []
-
-#         if '3JKCK2S00305WL' in sn:
-#             filtered_sn = [s for s in sn if s != '3JKCK2S00305WL']
-#             for idx, sn in enumerate(['3JKCK2S00305WL'], start=len(filtered_sn)):
-#                 try:
-#                     if multi_robots.number_id_by_sn([idx, sn]):
-#                         connected_robots_gripper.append((idx, sn))
-#                 except:
-#                     print(f"Robot with SN {sn} is not connected.")
-
-#             gripper_ids = [idx for idx, sn in connected_robots_gripper]
-#             robot_group_gripper = multi_robots.build_group(gripper_ids)
-
-#             return multi_robots, robot_group_gripper
-
-#         else:
-#             for idx, sn in enumerate(sn):
-#                 try:
-#                     if multi_robots.number_id_by_sn([idx, sn]):
-#                         connected_robots_gimbal.append((idx, sn))
-#                 except:
-#                     print(f"Robot with SN {sn} is not connected.")
-
-#             gimbal_ids = [idx for idx, sn in connected_robots_gimbal]
-#             robot_group_gimbal = multi_robots.build_group(gimbal_ids)
-
-#             return multi_robots, robot_group_gimbal
