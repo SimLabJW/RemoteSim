@@ -3,7 +3,7 @@ import threading
 import time
 import signal
 import os
-from RobotController import *
+from RobotController_sim import *
 from Simulator import Simulator
 
 class TCPServer:

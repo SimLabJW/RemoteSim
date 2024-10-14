@@ -3,7 +3,7 @@ import threading
 import time
 import os
 import json
-from RobotController import *
+from RobotController_sim import *
 import torch
 from Simulator import Simulator
 import cv2
