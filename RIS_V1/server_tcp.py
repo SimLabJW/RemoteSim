@@ -39,10 +39,11 @@ class TCPServer:
 
         self.confidence_threshold = 0.7
         # 모델 파일 경로 (best.pt 또는 last.pt)
-        model_path = './new_v25_2/best.pt'  # 혹은 'last.pt'
+        # model_path = './new_v25_2/best.pt'  # 혹은 'last.pt'
 
         # YOLOv5 모델 로드
-        self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
+        # self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
+
 
         for port in self.ports:
             try:
@@ -98,6 +99,12 @@ class TCPServer:
                         
 
     def initialize_robot(self, serial_number):
+        self.robots = {}  
+        self.ep_robot = None
+        self.robotcamera = None
+        self.robotsensor = None
+        self.robothit_sensor = None
+
         max_retries = 5
         for attempt in range(max_retries):
             try:
@@ -114,19 +121,19 @@ class TCPServer:
                                 'sensor': self.robotsensor,
                                 'hit' : self.robothit_sensor
                             }
-                            self.initialized_robots.add(serial_number)
+                            # self.initialized_robots.add(serial_number)
                             print(f"Successfully initialized robot with serial number: {serial_number}")
                             print(f"Robot camera initialized: {self.robotcamera is not None}")
                             break
                         else:
                             print(f"Failed to initialize robot with serial number: {serial_number}")
 
-                    if serial_number in self.robots:
-                        self.ep_robot = self.robots[serial_number]['robot']
-                        self.robotcamera = self.robots[serial_number]['camera']
-                        self.robotsensor = self.robots[serial_number]['sensor']
-                        self.robothit_sensor = self.robots[serial_number]['hit']
-                        break
+                    # if serial_number in self.robots:
+                    #     self.ep_robot = self.robots[serial_number]['robot']
+                    #     self.robotcamera = self.robots[serial_number]['camera']
+                    #     self.robotsensor = self.robots[serial_number]['sensor']
+                    #     self.robothit_sensor = self.robots[serial_number]['hit']
+                    #     break
             except socket.timeout:
                 print(f"Attempt {attempt + 1}/{max_retries} - Socket timeout during robot initialization for serial number: {serial_number}")
                 continue
@@ -176,17 +183,17 @@ class TCPServer:
                         self.remote_flag = True
                         serial_number = json_data[1]
 
-                        if serial_number not in self.initialized_robots:
-                            init_thread = threading.Thread(target=self.initialize_robot, args=(serial_number,))
-                            init_thread.start()
-                            init_thread.join()  
-                        else:
-                            print(f"Robot with serial number {serial_number} already initialized.")
-                            self.ep_robot = self.robots[serial_number]['robot']
-                            self.robotcamera = self.robots[serial_number]['camera']
-                            self.robotsensor = self.robots[serial_number]['sensor']
-                            self.robothit_sensor = self.robots[serial_number]['hit']
-                            time.sleep(3)
+                        # if serial_number not in self.initialized_robots:
+                        init_thread = threading.Thread(target=self.initialize_robot, args=(serial_number,))
+                        init_thread.start()
+                        init_thread.join()  
+                        # else:
+                        #     print(f"Robot with serial number {serial_number} already initialized.")
+                        #     self.ep_robot = self.robots[serial_number]['robot']
+                        #     self.robotcamera = self.robots[serial_number]['camera']
+                        #     self.robotsensor = self.robots[serial_number]['sensor']
+                        #     self.robothit_sensor = self.robots[serial_number]['hit']
+                        #     time.sleep(3)
 
                     
                         if send_thread and send_thread.is_alive():
@@ -208,20 +215,42 @@ class TCPServer:
                 elif port == 11014: 
            
                     if json_data[0] == 'Remote':
-                        time.sleep(3)
+                        current_time = datetime.now()
+                        # time.sleep(3)
                         
-                        with threading.Lock():
-                            self.image_conn = conn
+                            
+                        if 'Item1' in json_data[1] and 'Item2' in json_data[1]:
+                            command = json_data[1]['Item1']
+                            date_time = json_data[1]['Item2']
 
-                         # stop_event를 추가하여 handle_commands를 제어
-                        stop_event = threading.Event()
+                            received_time_obj = datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S.%f")  # 문자열을 datetime 객체로 변환
 
-                        command_thread = threading.Thread(target=self.handle_commands, args=(conn, stop_event))
-                        command_thread.start()
+                            time_difference = current_time - received_time_obj  # 시간 차이 계산
 
-                        # 이미지 전송 루프
-                        image_thread = threading.Thread(target=self.send_image, args=(self.robotcamera, stop_event))
-                        image_thread.start()
+                            print(f"Time difference: {time_difference.total_seconds()} seconds")
+
+                            # 로봇 명령어 처리
+                            if self.remote_flag and command in ['W', 'S', 'A', 'D', 'Q', 'E']:
+                                self.robomaster_move(command) 
+
+                            if self.remote_flag and command in ['J', 'L', 'I', 'K']:  # 대가리 회전
+                                self.robomaster_head_rotation(command)
+
+                        else:
+                            print(f"11014 Remote, first, {json_data} ")
+                            with threading.Lock():
+                                self.image_conn = conn
+
+                            # stop_event를 추가하여 handle_commands를 제어
+                            stop_event = threading.Event()
+
+                            command_thread = threading.Thread(target=self.handle_commands, args=(conn, stop_event))
+                            command_thread.start()
+
+                            # 이미지 전송 루프
+                            image_thread = threading.Thread(target=self.send_image, args=(self.robotcamera, stop_event))
+                            image_thread.start()
+
                     else:
 
                         # stop_event를 설정하여 handle_commands 중지
@@ -247,42 +276,42 @@ class TCPServer:
             conn.close()
             print(f"Client disconnected on port {port}: {addr}")
 
-    # def convert_image_to_bytes(self, image_data): yolov5 없이 사용할때
-    #     success, encoded_image = cv2.imencode('.jpg', image_data)
-    #     if success:
-    #         return encoded_image.tobytes()
-    #     else:
-    #         return None
-        
-    def convert_image_to_bytes(self, image_data):
-        # YOLO 모델에 전달할 원본 이미지 사용
-        original_image = image_data.copy()
-        
-        # YOLOv5 모델에 원본 이미지 전달하여 객체 감지
-        results = self.model(original_image)
-
-        # 감지된 객체 중 confidence score가 0.7 이상인 것만 필터링
-        results = results.pandas().xyxy[0]  # YOLOv5 결과를 판다스 DataFrame으로 변환
-        filtered_results = results[results['confidence'] >= self.confidence_threshold]
-
-        # 필터링된 결과를 기반으로 바운딩 박스 그리기
-        for index, row in filtered_results.iterrows():
-            # 좌표 추출
-            x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
-            confidence = row['confidence']
-            label = f"{row['name']} {confidence:.2f}"
-
-            # 바운딩 박스와 라벨을 원본 이미지에 그리기
-            cv2.rectangle(original_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(original_image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
-
-        # 원본 이미지에 바운딩 박스를 그린 후, 이를 JPEG 형식으로 인코딩
-        success, encoded_image = cv2.imencode('.jpg', original_image)
-        
+    def convert_image_to_bytes(self, image_data): #yolov5 없이 사용할때
+        success, encoded_image = cv2.imencode('.jpg', image_data)
         if success:
             return encoded_image.tobytes()
         else:
             return None
+        
+    # def convert_image_to_bytes(self, image_data):
+    #     # YOLO 모델에 전달할 원본 이미지 사용
+    #     original_image = image_data.copy()
+        
+    #     # YOLOv5 모델에 원본 이미지 전달하여 객체 감지
+    #     results = self.model(original_image)
+
+    #     # 감지된 객체 중 confidence score가 0.7 이상인 것만 필터링
+    #     results = results.pandas().xyxy[0]  # YOLOv5 결과를 판다스 DataFrame으로 변환
+    #     filtered_results = results[results['confidence'] >= self.confidence_threshold]
+
+    #     # 필터링된 결과를 기반으로 바운딩 박스 그리기
+    #     for index, row in filtered_results.iterrows():
+    #         # 좌표 추출
+    #         x1, y1, x2, y2 = int(row['xmin']), int(row['ymin']), int(row['xmax']), int(row['ymax'])
+    #         confidence = row['confidence']
+    #         label = f"{row['name']} {confidence:.2f}"
+
+    #         # 바운딩 박스와 라벨을 원본 이미지에 그리기
+    #         cv2.rectangle(original_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    #         cv2.putText(original_image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36, 255, 12), 2)
+
+    #     # 원본 이미지에 바운딩 박스를 그린 후, 이를 JPEG 형식으로 인코딩
+    #     success, encoded_image = cv2.imencode('.jpg', original_image)
+        
+    #     if success:
+    #         return encoded_image.tobytes()
+    #     else:
+    #         return None
 
     def handle_commands(self, conn, stop_event):
         try:
@@ -292,7 +321,7 @@ class TCPServer:
                     break
                 data = data.decode()
                 try:
-                    current_time = datetime.now()
+ 
                     json_data = json.loads(data)
 
                     if json_data[0] == "Unity Start":
@@ -309,7 +338,7 @@ class TCPServer:
 
                             received_time_obj = datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S.%f")  # 문자열을 datetime 객체로 변환
 
-                            time_difference = current_time - received_time_obj  # 시간 차이 계산
+                            time_difference = datetime.now() - received_time_obj  # 시간 차이 계산
 
                             print(f"Time difference: {time_difference.total_seconds()} seconds")
 
@@ -320,7 +349,7 @@ class TCPServer:
                             if self.remote_flag and command in ['J', 'L', 'I', 'K']:  # 대가리 회전
                                 self.robomaster_head_rotation(command)
 
-                    
+                            
 
                 except json.JSONDecodeError as e:
                     print(f"JSON decode error in handle_commands: {e}")
