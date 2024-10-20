@@ -1,0 +1,29 @@
+{
+    "ep-01": {
+        "ip_address": "192.168.50.11",
+        "sn": "3JKCK980030EKR",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    },
+    "ep-02": {
+        "ip_address": "192.168.50.12",
+        "sn": "a",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    },
+    "ep-03": {
+        "ip_address": "192.168.50.13",
+        "sn": "b",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    }
+}

@@ -1,0 +1,26 @@
+{
+    "tt-15": {
+        "ip_address": "192.168.50.11",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    },
+    "tt-16": {
+        "ip_address": "192.168.50.12",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    },
+    "tt-17": {
+        "ip_address": "192.168.50.13",
+        "ports": {
+            "command": 8889,
+            "state": 8890,
+            "video": 11111
+        }
+    }
+}
